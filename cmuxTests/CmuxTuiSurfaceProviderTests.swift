@@ -99,6 +99,40 @@ import Testing
         #expect(detached.port == nil)
     }
 
+    /// Real `ss -ltn` output from a cloud machine. Only the ports a person can
+    /// actually reach survive: SSH and the daemon transports are named as
+    /// internal, and the machine's own loopback plumbing — systemd-resolved on
+    /// 127.0.0.53, containerd on a 127.0.0.1 port whose number differs per
+    /// machine and per boot — is dropped by its bind address rather than by
+    /// number, since there is no fixed number to name.
+    @Test func listeningPortsHidesLoopbackPlumbingAndInternalTransports() {
+        let listing = """
+        State  Recv-Q Send-Q  Local Address:Port   Peer Address:Port Process
+        LISTEN 0      4096       127.0.0.54:53          0.0.0.0:*     users:(("systemd-resolve",pid=470,fd=16))
+        LISTEN 0      4096    127.0.0.53%lo:53          0.0.0.0:*     users:(("systemd-resolve",pid=470,fd=14))
+        LISTEN 0      128           0.0.0.0:22          0.0.0.0:*     users:(("sshd",pid=1496,fd=3))
+        LISTEN 0      4096        127.0.0.1:33291       0.0.0.0:*     users:(("containerd",pid=1277,fd=15))
+        LISTEN 0      128              [::]:22             [::]:*     users:(("sshd",pid=1496,fd=4))
+        LISTEN 0      128                 *:1337              *:*     users:(("cmux-tui",pid=9421,fd=25))
+        LISTEN 0      128           0.0.0.0:8000        0.0.0.0:*     users:(("python3",pid=2100,fd=3))
+        """
+        let ports = CmuxTuiSnapshotParser.listeningPorts(fromSocketListing: listing)
+            .filter { !CmuxTuiSnapshotParser.internalPorts.contains($0) }
+        #expect(ports == [8000])
+    }
+
+    @Test func wildcardBindsStayVisibleAndOnlyLoopbackLiteralsAreHidden() {
+        #expect(CmuxTuiSnapshotParser.isLoopbackListenAddress("127.0.0.1"))
+        #expect(CmuxTuiSnapshotParser.isLoopbackListenAddress("127.0.0.53%lo"))
+        #expect(CmuxTuiSnapshotParser.isLoopbackListenAddress("[::1]"))
+        // Wildcards are how a reachable server binds; they must not be hidden.
+        #expect(!CmuxTuiSnapshotParser.isLoopbackListenAddress("0.0.0.0"))
+        #expect(!CmuxTuiSnapshotParser.isLoopbackListenAddress("[::]"))
+        #expect(!CmuxTuiSnapshotParser.isLoopbackListenAddress("*"))
+        // A routable address that merely starts with 127 in another octet.
+        #expect(!CmuxTuiSnapshotParser.isLoopbackListenAddress("10.16.133.2"))
+    }
+
     @Test func localhostPortParsesOnlyMachineLocalURLs() {
         #expect(CmuxTuiSnapshotParser.localhostPort(fromURL: "http://localhost:5173/x?y=1") == 5173)
         #expect(CmuxTuiSnapshotParser.localhostPort(fromURL: "http://127.0.0.1:8080") == 8080)
@@ -301,7 +335,10 @@ import Testing
         LISTEN  0       128     127.0.0.1:5901      0.0.0.0:*
         LISTEN  0       128     0.0.0.0:3000        0.0.0.0:*
         """
-        #expect(CmuxTuiSnapshotParser.listeningPorts(fromSocketListing: ss) == [1337, 3000, 5901])
+        // 5901 is bound to loopback here, so it is not a reachable port and does
+        // not survive parsing. It is named internal as well, so the tree hid it
+        // either way; this only pins which of the two rules drops it.
+        #expect(CmuxTuiSnapshotParser.listeningPorts(fromSocketListing: ss) == [1337, 3000])
         #expect(CmuxTuiSnapshotParser.internalPorts.isSuperset(of: [1337, 5901, 6901]))
         #expect(CmuxTuiSnapshotParser.machineHasDesktop(image: "cmux-xfce-vnc:latest"))
         #expect(!CmuxTuiSnapshotParser.machineHasDesktop(image: "cmuxd-ws:tooling-20260509f"))

@@ -332,6 +332,13 @@ struct CmuxTuiSnapshotParser: Sendable {
     }
 
     /// Listening TCP ports from `ss -ltn` / `netstat -ltn` output (what `cmux vm ports` runs).
+    ///
+    /// Loopback-bound listeners are left out: nothing outside the machine can
+    /// reach them, so offering one as a link only ever produces a dead link.
+    /// That is what hides the machine's own plumbing without having to name it
+    /// — `systemd-resolved` on 127.0.0.53:53, containerd on a 127.0.0.1 port
+    /// that differs per machine and per boot, and anything else a person runs
+    /// bound to localhost only.
     static func listeningPorts(fromSocketListing text: String) -> [Int] {
         var seen = Set<Int>()
         var ports: [Int] = []
@@ -340,17 +347,35 @@ struct CmuxTuiSnapshotParser: Sendable {
             guard columns.count >= 4 else { continue }
             // `ss`: State Recv-Q Send-Q Local:Port …; `netstat`: Proto Recv-Q Send-Q Local:Port …
             for column in columns.prefix(5) {
-                guard let colon = column.lastIndex(of: ":"), let port = Int(column[column.index(after: colon)...]),
-                      (1...65535).contains(port), seen.insert(port).inserted else { continue }
-                ports.append(port)
+                guard let colon = column.lastIndex(of: ":"),
+                      let port = Int(column[column.index(after: colon)...]),
+                      (1...65535).contains(port) else { continue }
+                // This is the local address column; the line is settled here
+                // either way, so a loopback bind drops the line rather than
+                // falling through to the peer column.
+                if isLoopbackListenAddress(column[..<colon]) { break }
+                if seen.insert(port).inserted { ports.append(port) }
                 break
             }
         }
         return ports.sorted()
     }
 
-    /// Ports the tree hides: the daemon and desktop transports the machine itself owns.
-    static let internalPorts: Set<Int> = [1337, 5901, 6901, 8080]
+    /// Whether a listener's local address reaches only the machine itself.
+    /// `0.0.0.0`, `[::]` and `*` are wildcards and stay visible; only real
+    /// loopback literals are hidden. `ss` may append a zone (`127.0.0.53%lo`).
+    static func isLoopbackListenAddress(_ rawHost: Substring) -> Bool {
+        var host = Substring(rawHost)
+        if host.hasPrefix("["), host.hasSuffix("]") { host = host.dropFirst().dropLast() }
+        if let zone = host.firstIndex(of: "%") { host = host[..<zone] }
+        return host.hasPrefix("127.") || host == "::1"
+    }
+
+    /// Ports the tree hides even when they are reachable: transports the
+    /// machine owns (the cmux-tui daemon, the desktop's VNC/noVNC) and SSH,
+    /// which is how the machine is administered rather than something to open
+    /// in a browser tab.
+    static let internalPorts: Set<Int> = [22, 1337, 5901, 6901, 8080]
 
     static let desktopPort = 6901
 
