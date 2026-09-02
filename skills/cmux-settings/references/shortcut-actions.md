@@ -25,6 +25,7 @@ Values for `shortcuts.bindings.<action>`:
 
 - `shortcuts.bindings.newTab`
 - `shortcuts.bindings.newBrowserWorkspace`
+- `shortcuts.bindings.newCloudVMWorkspace`
 - `shortcuts.bindings.reopenPreviousSession`
 - `shortcuts.bindings.renameTab`
 - `shortcuts.bindings.closeTab`

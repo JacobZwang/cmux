@@ -14846,6 +14846,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
             return true
         }
 
+        if matchConfiguredShortcut(event: event, action: .newCloudVMWorkspace) {
+#if DEBUG
+            cmuxDebugLog("shortcut.action name=newCloudVMWorkspace \(debugShortcutRouteSnapshot(event: event))")
+#endif
+            // Same shared path the tab bar's Cloud VM button uses: it creates the
+            // workspace and provisions its machine, and owns the signed-out and
+            // no-window cases, so this only has to route the keystroke to it.
+            _ = performCloudVMAction(debugSource: "shortcut.cmdY")
+            return true
+        }
+
         // New Window: Cmd+Shift+N
         // Handled here instead of relying on SwiftUI's CommandGroup menu item because
         // after a browser panel has been shown, SwiftUI's menu dispatch can silently

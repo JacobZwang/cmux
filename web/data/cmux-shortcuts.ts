@@ -91,6 +91,15 @@ export const shortcutCategories: ShortcutCategory[] = [
           ja: "新規ワークスペースと同様ですが、最初のサーフェスがブラウザペインになり、アドレスバーにフォーカスします",
         },
       },
+      {
+        id: "newCloudVMWorkspace",
+        combos: [["⌘", "Y"]],
+        description: { en: "New cloud VM workspace", ja: "新規 Cloud VM ワークスペース" },
+        note: {
+          en: "like New Workspace, but the workspace gets its own cloud machine, provisioned as it opens",
+          ja: "新規ワークスペースと同様ですが、そのワークスペース専用の Cloud VM が開くときにプロビジョニングされます",
+        },
+      },
       { id: "saveLayoutTemplate", combos: [["⌃", "⌘", "S"]], description: { en: "Save current workspace layout as a template", ja: "現在のワークスペースレイアウトをテンプレートとして保存" } },
       { id: "openFolder", combos: [["⌘", "O"]], description: { en: "Open folder", ja: "フォルダを開く" } },
       {
