@@ -280,6 +280,26 @@ final class KeyboardShortcutContextTests: XCTestCase {
         XCTAssertEqual(settingsAction.displayName, KeyboardShortcutSettings.Action.newBrowserWorkspace.label)
     }
 
+    /// The two shortcut catalogs are parallel enums, so a new action has to be
+    /// added to both plus the settings package's default/display tables. This
+    /// pins the Cmd+Y binding and keeps the app and package halves aligned.
+    func testNewCloudVMWorkspaceSettingsPackageActionStaysAligned() {
+        guard let settingsAction = ShortcutAction(
+            rawValue: KeyboardShortcutSettings.Action.newCloudVMWorkspace.rawValue
+        ) else {
+            XCTFail("Expected CmuxSettings.ShortcutAction for newCloudVMWorkspace")
+            return
+        }
+        XCTAssertEqual(settingsAction.defaultStroke, ShortcutStroke(key: "y", command: true))
+        XCTAssertEqual(settingsAction.displayName, KeyboardShortcutSettings.Action.newCloudVMWorkspace.label)
+        XCTAssertEqual(
+            KeyboardShortcutSettings.shortcut(for: .newCloudVMWorkspace),
+            StoredShortcut(key: "y", command: true, shift: false, option: false, control: false)
+        )
+        // It has to be reachable in Settings > Keyboard Shortcuts to be rebindable.
+        XCTAssertTrue(KeyboardShortcutSettings.Action.newCloudVMWorkspace.isPublicShortcutAction)
+    }
+
     func testSettingsPackageDefaultWhenClausesMatchRuntimeShortcutContexts() {
         for action in KeyboardShortcutSettings.Action.allCases {
             guard let settingsAction = ShortcutAction(rawValue: action.rawValue) else {
